@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Room | Persistent Pro</title><link rel="icon" href="image/selfstudy.png" type="image/png">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg: #0b1120;
+            --navbar: #16213e;
+            --card: #1e293b;
+            --primary: #2563eb;
+            --accent: #f59e0b;
+            --success: #00ff88;
+            --gap-color: #ec4899;
+            --text: #f8fafc;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            margin: 0; padding: 0;
+        }
+
+        /* --- Auth Screen --- */
+        #auth-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg); z-index: 5000; display: flex; align-items: center; justify-content: center;
+        }
+        .auth-box { background: var(--card); padding: 30px; border-radius: 20px; width: 85%; max-width: 350px; text-align: center; border: 1px solid #334155; }
+        .auth-input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; outline: none; }
+        
+        #main-ui { display: none; }
+
+        .header-section { text-align: center; padding: 15px 0; }
+        .study-logo {
+            width: 55px; height: 55px;
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            border-radius: 15px; margin: 0 auto 5px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; color: white;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+        }
+
+        .navbar {
+            background: var(--navbar); padding: 12px 20px;
+            display: flex; justify-content: center; gap: 25px;
+            border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 100;
+        }
+        .nav-link { font-size: 0.85rem; color: #94a3b8; cursor: pointer; transition: 0.3s; }
+        .nav-link.active { color: white; font-weight: bold; border-bottom: 2px solid var(--primary); padding-bottom: 3px; }
+
+        .container { max-width: 500px; margin: auto; padding: 15px; }
+        .status-card { 
+            background: var(--card); padding: 20px; border-radius: 20px; 
+            text-align: center; margin-bottom: 15px; border: 1px solid #334155;
+        }
+
+        .filters { display: flex; justify-content: center; gap: 8px; margin-bottom: 15px; }
+        .f-btn {
+            background: #334155; border: none; color: white;
+            padding: 8px 12px; border-radius: 12px; font-size: 0.75rem;
+            cursor: pointer; position: relative;
+        }
+        
+        .date-input {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+
+        .timer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+        .time-box { background: rgba(0,0,0,0.3); padding: 10px 2px; border-radius: 12px; }
+        .time-box b { display: block; font-size: 1.1rem; color: var(--accent); font-family: monospace; }
+        .time-box small { font-size: 0.6rem; color: #94a3b8; }
+        
+        #live-timer { font-size: 3.5rem; color: var(--success); margin: 20px 0; font-family: monospace; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .t-btn { padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: white; font-size: 0.8rem; }
+        .stop-btn { background: #f8fafc; color: #0f172a; grid-column: span 2; margin-top: 10px; font-size: 1rem; }
+
+        .gap-pill { background: rgba(236, 72, 153, 0.1); padding: 6px 15px; border-radius: 20px; font-size: 0.7rem; color: var(--gap-color); margin: 15px auto; display: table; }
+
+        #report-modal {
+            display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center;
+        }
+        .modal-box {
+            background: var(--card); width: 90%; max-width: 400px; padding: 20px;
+            border-radius: 20px; border: 1px solid #334155;
+        }
+        .report-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+
+        .page { display: none; }
+        .page.active { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-screen">
+        <div class="auth-box">
+            <div class="study-logo">📖</div>
+            <h2 style="color: var(--primary); margin: 10px 0;">লগইন করুন</h2>
+            <input type="email" id="email" class="auth-input" placeholder="ইমেইল">
+            <input type="password" id="password" class="auth-input" placeholder="পাসওয়ার্ড">
+            <button class="t-btn" style="background: var(--primary); width: 100%;" onclick="handleAuth('login')">লগইন</button>
+            <p style="font-size: 0.75rem; margin-top: 15px; color: #94a3b8;">অ্যাকাউন্ট নেই? <span onclick="handleAuth('signup')" style="color: var(--success); cursor: pointer; font-weight: bold;">রেজিস্ট্রেশন করুন</span></p>
+        </div>
+    </div>
+
+    <div id="main-ui">
+        <div class="header-section">
+            <div class="study-logo">📖</div>
+            <b style="font-size: 1rem; letter-spacing: 1px; color: var(--primary);">SELF STUDY ROOM</b>
+            <div onclick="logout()" style="font-size: 0.7rem; color: #94a3b8; cursor: pointer; margin-top: 5px;">লগ আউট</div>
+        </div>
+
+        <div class="navbar">
+            <span id="tab1" class="nav-link active" onclick="goPage(1)">Self Tracker</span>
+            <span id="tab2" class="nav-link" onclick="goPage(2)">Milestones</span>
+        </div>
+
+        <div class="container">
+            <div id="p1" class="page active">
+                <div class="filters">
+                    <button class="f-btn" onclick="generateReport('Daily')">Daily</button>
+                    <button class="f-btn" onclick="generateReport('Weekly')">Weekly</button>
+                    <button class="f-btn" onclick="generateReport('Monthly')">Monthly</button>
+                    <button class="f-btn">
+                        📅 Date
+                        <input type="date" class="date-input" onchange="generateSpecificReport(this.value)">
+                    </button>
+                </div>
+
+                <div class="status-card">
+                    <div style="font-size: 1rem; font-weight: bold; margin-bottom: 10px;">
+                        আজকের তারিখ: <span id="today-date" style="color: var(--success);">---</span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: #ef4444; font-weight: bold;">🎯 HSC 2026 Countdown</div>
+                    <div class="timer-grid">
+                        <div class="time-box"><b id="main-d">00</b><small>দিন</small></div>
+                        <div class="time-box"><b id="main-h">00</b><small>ঘণ্টা</small></div>
+                        <div class="time-box"><b id="main-m">00</b><small>মিঃ</small></div>
+                        <div class="time-box"><b id="main-s">00</b><small>সেঃ</small></div>
+                    </div>
+                </div>
+
+                <div class="status-card">
+                    <small id="status-label" style="color: #94a3b8;">বিরতি নিচ্ছেন</small>
+                    <div id="live-timer">00:00:00</div>
+                    <div class="btn-grid">
+                        <button class="t-btn" style="background:#10b981;" onclick="run('Study')">📖 Study</button>
+                        <button class="t-btn" style="background:#06b6d4;" onclick="run('Class')">💻 Class</button>
+                        <button class="t-btn" style="background:#f59e0b;" onclick="run('Mobile')">📱 Mobile</button>
+                        <button class="t-btn" style="background:#8b5cf6;" onclick="run('Namaj')">🕌 Namaj</button>
+                        <button class="t-btn" style="background:#ef4444;" onclick="run('Food')">🍴 Food</button>
+                        <button class="t-btn" style="background:#64748b;" onclick="run('Others')">⚙️ Others</button>
+                        <button class="t-btn stop-btn" onclick="stop()">■ কাজ শেষ (Stop)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="p2" class="page">
+                <div class="status-card">🚀 HSC শুরু: ০২ জুলাই, ২০২৬<div class="timer-grid" id="cd-hsc-s"></div></div>
+                <div class="status-card">🏁 HSC শেষ: ২৯ জুলাই, ২০২৬<div class="timer-grid" id="cd-hsc-e"></div></div>
+                <div class="gap-pill" id="g1">Gap 1</div>
+                <div class="status-card" style="border-top: 3px solid var(--accent);">✍️ কোচিং শুরু: ০১ সেপ্টেম্বর<div class="timer-grid" id="cd-coach"></div></div>
+                <div class="gap-pill" id="g2">Gap 2</div>
+                <div class="status-card" style="border-top: 3px solid var(--success);">🩺 মেডিকেল অ্যাডমিশন: ১১ ডিসেম্বর<div class="timer-grid" id="cd-med"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="report-modal">
+        <div class="modal-box">
+            <h3 id="report-title">Report</h3>
+            <div id="report-content"></div>
+            <hr style="border: 0.5px solid #334155; margin: 15px 0;">
+            <button class="t-btn" style="background: var(--primary); width: 100%;" onclick="downloadReport()">📥 Download Report</button>
+            <button class="t-btn" style="background: #475569; width: 100%; margin-top: 8px;" onclick="closeReport()">বন্ধ করুন</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCuO2g-9hKhRbBVHivOEOqTH1DzRWgCN4U",
+            authDomain: "exam-tracker-a994a.firebaseapp.com",
+            databaseURL: "https://exam-tracker-a994a-default-rtdb.firebaseio.com",
+            projectId: "exam-tracker-a994a",
+            storageBucket: "exam-tracker-a994a.firebasestorage.app",
+            messagingSenderId: "230504256248",
+            appId: "1:230504256248:web:f834b2a9945e4988be610d"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        auth.onAuthStateChanged(user => {
+            if(user) {
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'block';
+                updateTimers();
+                resumeActiveTimer();
+            } else {
+                document.getElementById('auth-screen').style.display = 'flex';
+                document.getElementById('main-ui').style.display = 'none';
+            }
+        });
+
+        function handleAuth(type) {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            if(!e || !p) { alert("সব তথ্য দিন"); return; }
+            if(type === 'login') {
+                auth.signInWithEmailAndPassword(e, p).catch(err => alert(err.message));
+            } else {
+                auth.createUserWithEmailAndPassword(e, p).then(() => alert("অ্যাকাউন্ট তৈরি হয়েছে!")).catch(err => alert(err.message));
+            }
+        }
+
+        function logout() { auth.signOut(); }
+
+        function goPage(n) {
+            document.getElementById('p1').classList.toggle('active', n===1);
+            document.getElementById('p2').classList.toggle('active', n===2);
+            document.getElementById('tab1').classList.toggle('active', n===1);
+            document.getElementById('tab2').classList.toggle('active', n===2);
+        }
+
+        const targets = {
+            s: new Date("July 2, 2026").getTime(),
+            e: new Date("July 29, 2026").getTime(),
+            c: new Date("September 1, 2026").getTime(),
+            m: new Date("December 11, 2026").getTime()
+        };
+
+        function updateTimers() {
+            document.getElementById('today-date').innerText = new Date().toLocaleDateString('bn-BD');
+            const now = new Date().getTime();
+            const updateUI = (id, target, isMain=false) => {
+                const diff = target - now;
+                const d = Math.max(0, Math.floor(diff/86400000)), h = Math.max(0, Math.floor((diff%86400000)/3600000)), m = Math.max(0, Math.floor((diff%3600000)/60000)), s = Math.max(0, Math.floor((diff%60000)/1000));
+                if(isMain) {
+                    document.getElementById('main-d').innerText = d; document.getElementById('main-h').innerText = h;
+                    document.getElementById('main-m').innerText = m; document.getElementById('main-s').innerText = s;
+                } else {
+                    const el = document.getElementById(id);
+                    if(el) el.innerHTML = `<div class="time-box"><b>${d}</b><small>দিন</small></div><div class="time-box"><b>${h}</b><small>ঘণ্টা</small></div><div class="time-box"><b>${m}</b><small>মিঃ</small></div><div class="time-box"><b>${s}</b><small>সেঃ</small></div>`;
+                }
+            };
+            updateUI('', targets.s, true);
+            updateUI('cd-hsc-s', targets.s); updateUI('cd-hsc-e', targets.e); updateUI('cd-coach', targets.c); updateUI('cd-med', targets.m);
+        }
+        setInterval(updateTimers, 1000);
+
+        let track, startT, active = false, currentLabel = "";
+
+        function run(l) {
+            if(active) stop(); 
+            active = true; currentLabel = l; startT = Date.now();
+            localStorage.setItem('activeStart', startT);
+            localStorage.setItem('activeLabel', currentLabel);
+            localStorage.setItem('activeUser', auth.currentUser.uid);
+            document.getElementById('status-label').innerText = "চলছে: " + currentLabel;
+            startInterval();
+        }
+
+        function startInterval() {
+            if(track) clearInterval(track);
+            track = setInterval(() => {
+                let d = Date.now() - startT;
+                let h = Math.floor(d/3600000), m = Math.floor((d%3600000)/60000), s = Math.floor((d%60000)/1000);
+                document.getElementById('live-timer').innerText = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            }, 1000);
+        }
+
+        function resumeActiveTimer() {
+            const savedStart = localStorage.getItem('activeStart');
+            const savedLabel = localStorage.getItem('activeLabel');
+            const savedUser = localStorage.getItem('activeUser');
+            if(savedStart && savedLabel && savedUser === auth.currentUser.uid) {
+                startT = parseInt(savedStart); currentLabel = savedLabel; active = true;
+                document.getElementById('status-label').innerText = "চলছে: " + currentLabel;
+                startInterval();
+            }
+        }
+
+        async function stop() {
+            if(!active) return;
+            const duration = Date.now() - startT;
+            const dateStr = new Date().toISOString().split('T')[0];
+            const labelToSave = currentLabel;
+            const userId = auth.currentUser.uid;
+
+            clearInterval(track);
+            active = false;
+            document.getElementById('live-timer').innerText = "00:00:00";
+            document.getElementById('status-label').innerText = "বিরতি নিচ্ছেন";
+            
+            localStorage.removeItem('activeStart');
+            localStorage.removeItem('activeLabel');
+            localStorage.removeItem('activeUser');
+
+            if (auth.currentUser) {
+                try {
+                    // নির্দিষ্ট ইউজার আইডির আন্ডারে হিস্ট্রি সেভ হচ্ছে
+                    await db.collection("users").doc(userId).collection("history").add({
+                        label: labelToSave,
+                        duration: duration,
+                        date: dateStr,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } catch (e) {
+                    console.error("Save failed: ", e);
+                    alert("ডাটা সেভ হয়নি।");
+                }
+            }
+        }
+
+        let currentReportText = "";
+        async function generateReport(type) { 
+            let date = new Date().toISOString().split('T')[0];
+            processReport(type, date); 
+        }
+        function generateSpecificReport(date) { processReport('Date Specific', date); }
+
+        async function processReport(type, filterDate) {
+            if(!auth.currentUser) return;
+            
+            // শুধুমাত্র বর্তমান ইউজারের ডাটা ফেচ করা হচ্ছে
+            const snapshot = await db.collection("users").doc(auth.currentUser.uid).collection("history").where("date", "==", filterDate).get();
+            let totals = { Study:0, Class:0, Mobile:0, Namaj:0, Food:0, Others:0 };
+            
+            snapshot.forEach(doc => {
+                const item = doc.data();
+                if(totals[item.label] !== undefined) totals[item.label] += item.duration;
+            });
+
+            let content = ""; currentReportText = `${type} (${filterDate}):\n`;
+            for(let key in totals) {
+                let h = Math.floor(totals[key]/3600000), m = Math.floor((totals[key]%3600000)/60000);
+                content += `<div class="report-item"><span>${key}</span><b>${h}h ${m}m</b></div>`;
+                currentReportText += `${key}: ${h}h ${m}m\n`;
+            }
+            document.getElementById('report-title').innerText = filterDate + " এর হিসাব";
+            document.getElementById('report-content').innerHTML = content;
+            document.getElementById('report-modal').style.display = 'flex';
+        }
+
+        function downloadReport() {
+            const blob = new Blob([currentReportText], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Habibur_Report.txt`; link.click();
+        }
+        function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
+    </script>
+</body>
+</html>
